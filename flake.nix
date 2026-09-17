@@ -15,7 +15,7 @@
             pname = "eink-mcp";
             version = "0.1.0";
             src = ./.;
-            npmDepsHash = "NPM_DEPS_HASH";
+            npmDepsHash = "sha256-+2LxGWFxZSxQ4aQIsOk8m2aNIVlLSAAS3x996voMqss=";
             nodejs = pkgs.nodejs_24;
             npmFlags = [ "--ignore-scripts" ];
             nativeBuildInputs = [ pkgs.makeWrapper ];
