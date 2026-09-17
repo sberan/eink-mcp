@@ -75,7 +75,7 @@ export class Store {
     const sha256 = createHash('sha256').update(body).digest('hex');
     const m = await this.manifest();
     // the same bytes may already be stored under another path (or this one): reuse the blob
-    const existing = Object.values(m.files).find((e) => e.sha256 === sha256);
+    const existing = Object.values(m.files).find((e) => e.sha256 === sha256 && e.url.includes('/_/'));
     const url = existing?.url ?? (await this.upload(this.blobPath(sha256), body, contentType, true)).url;
     if (LEGACY_PATHS.has(path)) await this.upload(path, body, contentType);
     const entry: Entry = { sha256, size: body.length, url, content_type: contentType, updated: new Date().toISOString() };
