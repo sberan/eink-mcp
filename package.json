@@ -1,0 +1,25 @@
+{
+  "name": "eink-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that hosts files for e-ink devices running eink-ui and syncs them down over a public URL",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "eink-mcp": "dist/index.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && node --test test/",
+    "smoke": "node test/smoke.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@vercel/blob": "1.1.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
