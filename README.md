@@ -2,8 +2,10 @@
 
 An MCP server that hosts files for e-ink devices and syncs them down.
 
-Agents put files here with MCP tools. The files land at stable public URLs in a Vercel Blob
-store together with a `manifest.json` that lists every path with its sha256. A device such as a
+Agents put files here with MCP tools. Each file version lands once at an immutable,
+content-addressed public URL in a Vercel Blob store, and a small `manifest.json` maps paths to
+those URLs with their sha256. Only the manifest is ever overwritten, so a reader can never see a
+manifest that disagrees with the file it names; it can only be up to a minute behind. A device such as a
 jailbroken Kindle running [eink-ui](https://github.com/sberan/eink-ui) points its update URL at
 that manifest and pulls whatever changed on every start, wake and reload. Nothing has to reach
 the device: it is behind NAT and asleep most of the day, so it always pulls.
@@ -67,7 +69,9 @@ SELECT mcp.register_server('eink', auth => 'bearer',
 ```
 
 A device keeps the manifest's ETag and the sha256 of each file it holds, downloads only files
-whose hash changed, and deletes files that left the manifest.
+whose hash changed, verifies the hash (the CDN can lag a file behind its manifest for up to a
+minute, in which case the device simply tries again on its next sync), and deletes files that
+left the manifest.
 
 ## Develop
 

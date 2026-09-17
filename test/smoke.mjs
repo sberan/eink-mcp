@@ -20,8 +20,16 @@ const put = await call('put_file', { path: 'hello.txt', content: `hello ${stamp}
 console.log('put:', put.size, 'bytes', put.url);
 const status = await call('status');
 console.log('status:', status);
-const manifest = await (await fetch(status.manifest, { cache: 'no-store' })).json();
+// the CDN may serve the previous manifest for up to a minute; a device simply syncs again later
+let manifest;
+for (let i = 0; i < 20; i++) {
+  manifest = await (await fetch(status.manifest, { cache: 'no-store' })).json();
+  if (manifest.files['hello.txt']?.sha256 === put.sha256) break;
+  if (i === 0) console.log('waiting for the CDN to pick up the manifest...');
+  await new Promise((r) => setTimeout(r, 5000));
+}
 if (manifest.files['hello.txt']?.sha256 !== put.sha256) throw new Error('manifest does not list the file');
+if (!manifest.files['hello.txt'].url.includes('/_/' + put.sha256)) throw new Error('manifest should point at the immutable blob');
 const got = await call('get_file', { path: 'hello.txt' });
 if (got.content !== `hello ${stamp}\n`) throw new Error('get_file returned different content');
 const bin = await call('put_file', { path: 'bin/blob.bin', content_base64: Buffer.from([0, 255, 1, 2]).toString('base64') });
