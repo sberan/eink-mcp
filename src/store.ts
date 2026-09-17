@@ -4,7 +4,7 @@
 // change but never mismatch a manifest with the file it names. A few well-known paths (app.js,
 // eink-host) are also written at their plain path for hosts that fetch by name.
 import { createHash } from 'node:crypto';
-import { del, list, put } from '@vercel/blob';
+import { del, head, list, put } from '@vercel/blob';
 
 export interface Entry { sha256: string; size: number; url: string; content_type: string; updated: string }
 export interface Manifest { version: 1; generated: string; base: string; files: Record<string, Entry> }
@@ -52,11 +52,21 @@ export class Store {
     const { blobs } = await list({ prefix: this.prefix + MANIFEST, token: this.token, limit: 1 });
     const blob = blobs.find((b) => b.pathname === this.prefix + MANIFEST);
     if (!blob) return { version: 1, generated: new Date(0).toISOString(), base: '', files: {} };
-    // a query string keeps the CDN from answering with a copy up to a minute old
-    const res = await fetch(`${blob.url}?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`manifest fetch failed: HTTP ${res.status}`);
-    this.cached = (await res.json()) as Manifest;
-    return structuredClone(this.cached);
+    // The CDN may serve a copy up to a minute old, and writing on top of a stale manifest would
+    // drop someone else's files. The list API is authoritative about when the manifest was last
+    // uploaded, so keep reading until the copy we get is that one.
+    const uploaded = new Date(blob.uploadedAt).getTime();
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(blob.url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`manifest fetch failed: HTTP ${res.status}`);
+      const m = (await res.json()) as Manifest;
+      if (uploaded - new Date(m.generated).getTime() < 15_000) {
+        this.cached = m;
+        return structuredClone(m);
+      }
+      if (attempt >= 18) throw new Error('manifest.json is still stale on the CDN after 90 s');
+      await new Promise((r) => setTimeout(r, 5000));
+    }
   }
 
   private async writeManifest(m: Manifest): Promise<Manifest> {
@@ -76,7 +86,8 @@ export class Store {
     const m = await this.manifest();
     // the same bytes may already be stored under another path (or this one): reuse the blob
     const existing = Object.values(m.files).find((e) => e.sha256 === sha256 && e.url.includes('/_/'));
-    const url = existing?.url ?? (await this.upload(this.blobPath(sha256), body, contentType, true)).url;
+    const reusable = existing && (await head(existing.url, { token: this.token }).then(() => true, () => false));
+    const url = reusable ? existing.url : (await this.upload(this.blobPath(sha256), body, contentType, true)).url;
     if (LEGACY_PATHS.has(path)) await this.upload(path, body, contentType);
     const entry: Entry = { sha256, size: body.length, url, content_type: contentType, updated: new Date().toISOString() };
     const previous = m.files[path];
